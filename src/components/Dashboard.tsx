@@ -1,61 +1,37 @@
-'use client'
+// dashboard/page.tsx
+import { createSupabaseServerClient } from '@/supabase/server'
 
-import { supabase } from '@/utils/supabase'
-import { useEffect, useState } from 'react'
+export default async function Dashboard() {
+  const supabase = createSupabaseServerClient()
 
-export default function Dashboard() {
-  const [user, setUser] = useState<any>(null)
-  const [role, setRole] = useState('')
-
-  useEffect(() => {
-    const fetchUserAndRole = async () => {
-      try {
-        const {
-          data: { user },
-          error: userError,
-        } = await supabase.auth.getUser()
-
-        if (userError) {
-          console.error('Error fetching user:', userError)
-          return
-        }
-
-        if (user) {
-          setUser(user)
-          const { data, error: roleError } = await supabase
-            .from('users')
-            .select('role')
-            .eq('id', user.id)
-            .single()
-
-          if (roleError) {
-            console.error('Error fetching role:', roleError)
-            return
-          }
-
-          if (data?.role) {
-            setRole(data.role)
-          }
-        }
-      } catch (error) {
-        console.error('Unexpected error:', error)
-      }
-    }
-
-    fetchUserAndRole()
-  }, [])
+  // Get authenticated user
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
 
   if (!user) {
-    return <div>Loading...</div>
+    return <div>Please login to access the dashboard.</div>
+  }
+
+  // Fetch user role from 'users' table
+  const { data: userData, error } = await supabase
+    .from('users')
+    .select('role')
+    .eq('id', user.id)
+    .single()
+
+  if (error) {
+    console.error('Error fetching user role:', error)
+    return <div>Error loading user role.</div>
   }
 
   return (
     <div className="container mx-auto p-4">
       <h1 className="text-2xl font-bold mb-4">Dashboard</h1>
       <p>Welcome, {user.email}</p>
-      <p>Your role: {role}</p>
+      <p>Your role: {userData?.role || 'No role assigned'}</p>
 
-      {/* Role-based content will go here */}
+      {/* Add role-based content here */}
     </div>
   )
 }

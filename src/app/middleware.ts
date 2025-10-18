@@ -10,10 +10,24 @@ const roleRedirects: Record<string, string> = {
 
 const publicPaths = ['/auth/login', '/favicon.ico']
 
+function parseJwt(token: string) {
+  try {
+    const base64Payload = token.split('.')[1]
+    const decodedPayload = decodeURIComponent(
+      atob(base64Payload)
+        .split('')
+        .map(c => '%' + c.charCodeAt(0).toString(16).padStart(2, '0'))
+        .join('')
+    )
+    return JSON.parse(decodedPayload)
+  } catch {
+    return null
+  }
+}
+
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
 
-  // Allow public paths
   if (publicPaths.some(path => pathname.startsWith(path))) {
     return NextResponse.next()
   }
@@ -25,29 +39,24 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(loginUrl)
   }
 
-  let userRole: string | undefined = undefined
-  try {
-    const base64Payload = token.split('.')[1]
-    const payload = JSON.parse(Buffer.from(base64Payload, 'base64').toString())
-
-    userRole = payload['role'] || payload['https://hasura.io/jwt/claims']?.['x-hasura-role']
-  } catch (err) {
-    console.error('Failed to decode JWT token:', err)
+  const payload = parseJwt(token)
+  if (!payload) {
     const loginUrl = new URL('/auth/login', request.url)
     return NextResponse.redirect(loginUrl)
   }
+
+  const userRole =
+    payload['role'] || payload['https://hasura.io/jwt/claims']?.['x-hasura-role']
 
   if (!userRole || !roleRedirects[userRole]) {
     const loginUrl = new URL('/auth/login', request.url)
     return NextResponse.redirect(loginUrl)
   }
 
-  // Redirect root to role-based dashboard
   if (pathname === '/') {
     return NextResponse.redirect(new URL(roleRedirects[userRole], request.url))
   }
 
-  // Allowed prefixes per role
   const rolePaths: Record<string, string> = {
     super_admin: '/superadmin',
     architect: '/architect',
@@ -57,7 +66,6 @@ export async function middleware(request: NextRequest) {
 
   const allowedPrefix = rolePaths[userRole]
 
-  // Allow /messages for all authenticated users
   if (!pathname.startsWith(allowedPrefix) && pathname !== '/messages') {
     return NextResponse.redirect(new URL(roleRedirects[userRole], request.url))
   }
@@ -66,7 +74,5 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: [
-    '/((?!_next/static|_next/image|favicon.ico).*)',
-  ],
+  matcher: ['/((?!_next/static|_next/image|favicon.ico).*)'],
 }
