@@ -1,24 +1,31 @@
-import { redirect } from 'next/navigation';
-import { supabaseServerClient } from '@/utils/supabase/server';
-import Dashboard from '@/components/Dashboard';
+import { redirect } from 'next/navigation'
+import { supabaseClient } from '@/utils/supabase/client'
 
 export default async function HomePage() {
-  // Fetch the current session from Supabase
   const {
     data: { session },
-    error,
-  } = await supabaseServerClient.auth.getSession();
+  } = await supabaseClient.auth.getSession()
 
-  if (error) {
-    // Handle potential error (optional)
-    console.error('Error fetching session:', error);
-  }
-
-  // If no active session, redirect to login page
   if (!session) {
-    redirect('/auth/login');
+    redirect('/auth/login')
   }
 
-  // If logged in, render the Dashboard component
-  return <Dashboard />;
+  const { data: user } = await supabaseClient
+    .from('users')
+    .select('role')
+    .eq('id', session.user.id)
+    .single()
+
+  switch (user?.role) {
+    case 'super_admin':
+      redirect('/superadmin/dashboard')
+    case 'architect':
+      redirect('/architect/projects')
+    case 'structural_team':
+      redirect('/structural-team')
+    case 'client':
+      redirect('/client')
+    default:
+      redirect('/auth/login')
+  }
 }
