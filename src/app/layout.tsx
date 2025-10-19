@@ -13,8 +13,9 @@ export default function RootLayout({
       <head>
         <title>Quad Plus Architects</title>
       </head>
-      <body className={inter.className}>
-        <main className="min-h-screen bg-white">
+      {/* 👇 Add your custom background class here */}
+      <body className={`${inter.className} bg-brand-light text-gray-900`}>
+        <main className="min-h-screen">
           {children}
         </main>
       </body>
