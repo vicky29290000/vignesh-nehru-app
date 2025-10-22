@@ -1,58 +1,76 @@
-'use client';
+'use client';  // This marks the component as a Client Component
 
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { supabaseClient } from '../../../lib/supabaseClient'; // Correct import path
+import { supabase } from '../../../supabase';  // Adjust path based on where you placed supabase.ts
 
 export default function LoginPage() {
   const router = useRouter();
-
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [isSessionChecked, setIsSessionChecked] = useState(false);
+  const listenerRef = useRef<any>(null);  // Define `listenerRef` with a type
 
-  const listenerRef = useRef(null); // Ref to store listener
-
-  // Effect to handle session and listener
   useEffect(() => {
-    const checkSession = async () => {
-      const { data: { session } } = await supabaseClient.auth.getSession();
-      if (session?.user) {
-        console.log('User already logged in:', session.user);
-        setIsLoggedIn(true);
-        router.push('/'); // Redirect to homepage if already logged in
-      }
-    };
+    if (!supabase) {
+      console.error('Supabase client not initialized');
+      return;
+    }
 
-    checkSession(); // Check session initially
-
-    // Setup the listener for authentication state changes
-    listenerRef.current = supabaseClient.auth.onAuthStateChange((_event, session) => {
+    const res = supabase.auth.onAuthStateChange((_event, session) => {
       if (session?.user) {
         console.log('User logged in:', session.user);
         setIsLoggedIn(true);
-        router.push('/'); // Redirect to homepage after login
+        router.push('/'); // Redirect after login
+      } else {
+        setIsLoggedIn(false); // Handle logout
       }
     });
 
-    // Cleanup listener on component unmount
+    listenerRef.current = res?.data?.subscription ?? res;
+
     return () => {
-      if (listenerRef.current) {
-        listenerRef.current.unsubscribe();
+      const sub = listenerRef.current;
+      if (!sub) return;
+      if (typeof sub.unsubscribe === 'function') {
+        sub.unsubscribe();
+      } else if (typeof sub === 'function') {
+        sub();
       }
     };
   }, [router]);
 
-  // Handle login form submission
-  const handleLogin = async (e) => {
+  useEffect(() => {
+    const checkSession = async () => {
+      if (!supabase) {
+        console.error('Supabase client not initialized');
+        return;
+      }
+
+      const { data: { session }, error } = await supabase.auth.getSession();
+      if (error) {
+        console.error('Error fetching session:', error.message);
+      }
+      if (session?.user) {
+        setIsLoggedIn(true);
+        router.push('/'); // Redirect if user is already logged in
+      }
+      setIsSessionChecked(true);
+    };
+
+    checkSession();
+  }, [router]);
+
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError(null);
 
     try {
-      const { user, session, error: loginError } = await supabaseClient.auth.signInWithPassword({
+      const { user, session, error: loginError } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
@@ -81,11 +99,21 @@ export default function LoginPage() {
     }
   };
 
+  if (!isSessionChecked) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-100">
+        <div className="w-full max-w-md p-8 border border-gray-300 rounded-md shadow-md bg-white">
+          <p className="text-center text-gray-600 text-lg">Checking session...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-100">
       <div className="w-full max-w-md p-8 border border-gray-300 rounded-md shadow-md bg-white">
         <h1 className="text-3xl font-extrabold text-gray-900 text-center mb-2">
-          Welcome to Our App
+          Welcome to Quad Plus Architects
         </h1>
         <p className="text-center text-gray-600 text-sm mb-6">Your gateway to greatness</p>
 
@@ -108,13 +136,13 @@ export default function LoginPage() {
           />
           
           {error && (
-            <p className="text-red-500 text-sm mt-2">{error}</p>  // Display error if any
+            <p className="text-red-500 text-sm mt-2">{error}</p>
           )}
 
           <button
             type="submit"
             className="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-2 rounded font-medium transition-colors duration-200"
-            disabled={loading}  // Disable button when loading
+            disabled={loading}
           >
             {loading ? 'Signing in...' : 'Sign In'}
           </button>
