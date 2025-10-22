@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
+import { createMiddlewareSupabaseClient } from '@supabase/auth-helpers-nextjs'
 
 const roleRedirects: Record<string, string> = {
   super_admin: '/superadmin/dashboard',
@@ -10,48 +11,34 @@ const roleRedirects: Record<string, string> = {
 
 const publicPaths = ['/auth/login', '/favicon.ico']
 
-function parseJwt(token: string) {
-  try {
-    const base64Payload = token.split('.')[1]
-    const decodedPayload = decodeURIComponent(
-      atob(base64Payload)
-        .split('')
-        .map(c => '%' + c.charCodeAt(0).toString(16).padStart(2, '0'))
-        .join('')
-    )
-    return JSON.parse(decodedPayload)
-  } catch {
-    return null
-  }
-}
-
 export async function middleware(request: NextRequest) {
-  const { pathname } = request.nextUrl
-
-  if (publicPaths.some(path => pathname.startsWith(path))) {
+  if (publicPaths.some(path => request.nextUrl.pathname.startsWith(path))) {
     return NextResponse.next()
   }
 
-  const token = request.cookies.get('sb-access-token')?.value
+  const response = NextResponse.next()
+  const supabase = createMiddlewareSupabaseClient({ req: request, res: response })
 
-  if (!token) {
+  const {
+    data: { session },
+  } = await supabase.auth.getSession()
+
+  if (!session) {
     const loginUrl = new URL('/auth/login', request.url)
     return NextResponse.redirect(loginUrl)
   }
 
-  const payload = parseJwt(token)
-  if (!payload) {
-    const loginUrl = new URL('/auth/login', request.url)
-    return NextResponse.redirect(loginUrl)
-  }
-
+  // Extract role from the session or JWT claims
   const userRole =
-    payload['role'] || payload['https://hasura.io/jwt/claims']?.['x-hasura-role']
+    session.user?.role || session.user?.user_metadata?.role || 
+    session.access_token && parseRoleFromJwt(session.access_token)
 
   if (!userRole || !roleRedirects[userRole]) {
     const loginUrl = new URL('/auth/login', request.url)
     return NextResponse.redirect(loginUrl)
   }
+
+  const pathname = request.nextUrl.pathname
 
   if (pathname === '/') {
     return NextResponse.redirect(new URL(roleRedirects[userRole], request.url))
@@ -70,7 +57,20 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL(roleRedirects[userRole], request.url))
   }
 
-  return NextResponse.next()
+  return response
+}
+
+function parseRoleFromJwt(token: string): string | null {
+  try {
+    const payloadBase64 = token.split('.')[1]
+    const payloadJson = Buffer.from(payloadBase64, 'base64').toString('utf8')
+    const payload = JSON.parse(payloadJson)
+    return (
+      payload['role'] || payload['https://hasura.io/jwt/claims']?.['x-hasura-role'] || null
+    )
+  } catch {
+    return null
+  }
 }
 
 export const config = {
