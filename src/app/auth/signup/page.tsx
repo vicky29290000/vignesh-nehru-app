@@ -1,20 +1,17 @@
-'use client'
+import { useRouter } from 'next/router'
 
-import { useState } from 'react'
-import { supabaseClient } from '@/supabase/client'
-
-export default function SignupPage() {
+const SignupPage = () => {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [fullName, setFullName] = useState('')
-  const [role, setRole] = useState('client') // default role
+  const [role, setRole] = useState('client')
   const [loading, setLoading] = useState(false)
+  const router = useRouter()
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
 
-    // 1. Sign up user with Supabase Auth
     const { data, error } = await supabaseClient.auth.signUp({
       email,
       password,
@@ -27,7 +24,6 @@ export default function SignupPage() {
     }
 
     if (data.user) {
-      // 2. Insert user role info into your 'users' table
       const { error: insertError } = await supabaseClient
         .from('users')
         .insert({
@@ -43,8 +39,9 @@ export default function SignupPage() {
         return
       }
 
+      // Navigate to login page
       alert('Signup successful! Please check your email to confirm your account.')
-      // Optionally redirect or clear form
+      router.push('/auth/login')
     }
 
     setLoading(false)
@@ -81,7 +78,6 @@ export default function SignupPage() {
             onChange={(e) => setPassword(e.target.value)}
             className="input"
           />
-
           <select
             value={role}
             onChange={(e) => setRole(e.target.value)}
@@ -92,7 +88,6 @@ export default function SignupPage() {
             <option value="super_admin">Super Admin</option>
             <option value="structural_team">Structural Team</option>
           </select>
-
           <button
             type="submit"
             disabled={loading}
@@ -105,3 +100,5 @@ export default function SignupPage() {
     </div>
   )
 }
+
+export default SignupPage

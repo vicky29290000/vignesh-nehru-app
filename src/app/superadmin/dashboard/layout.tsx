@@ -8,8 +8,10 @@ export default async function SuperAdminLayout({
 }) {
   const user = await getUser()
 
+  // Redirect if the user is not a super admin
   if (!user || user.role !== 'super_admin') {
-    redirect('/auth/login') // optional: redirect to a "403 Unauthorized" page
+    redirect('/auth/login') // You can also redirect to a "403 Unauthorized" page if preferred
+    return null // Ensure nothing is rendered after redirect
   }
 
   return (

@@ -12,6 +12,7 @@ const roleRedirects: Record<string, string> = {
 const publicPaths = ['/auth/login', '/favicon.ico']
 
 export async function middleware(request: NextRequest) {
+  // Skip the middleware for public paths
   if (publicPaths.some(path => request.nextUrl.pathname.startsWith(path))) {
     return NextResponse.next()
   }
@@ -21,18 +22,18 @@ export async function middleware(request: NextRequest) {
 
   const {
     data: { session },
+    error,
   } = await supabase.auth.getSession()
 
-  if (!session) {
+  // Handle errors or missing session
+  if (error || !session) {
     const loginUrl = new URL('/auth/login', request.url)
     return NextResponse.redirect(loginUrl)
   }
 
-  // Extract role from the session or JWT claims
-  const userRole =
-    session.user?.role || session.user?.user_metadata?.role || 
-    session.access_token && parseRoleFromJwt(session.access_token)
+  const userRole = session.user?.role || session.user?.user_metadata?.role || parseRoleFromJwt(session.access_token)
 
+  // Handle invalid or missing role
   if (!userRole || !roleRedirects[userRole]) {
     const loginUrl = new URL('/auth/login', request.url)
     return NextResponse.redirect(loginUrl)
@@ -40,6 +41,7 @@ export async function middleware(request: NextRequest) {
 
   const pathname = request.nextUrl.pathname
 
+  // If the user is on the root, redirect them based on role
   if (pathname === '/') {
     return NextResponse.redirect(new URL(roleRedirects[userRole], request.url))
   }
@@ -53,6 +55,7 @@ export async function middleware(request: NextRequest) {
 
   const allowedPrefix = rolePaths[userRole]
 
+  // If the user is not authorized to view the current path, redirect
   if (!pathname.startsWith(allowedPrefix) && pathname !== '/messages') {
     return NextResponse.redirect(new URL(roleRedirects[userRole], request.url))
   }
@@ -65,10 +68,9 @@ function parseRoleFromJwt(token: string): string | null {
     const payloadBase64 = token.split('.')[1]
     const payloadJson = Buffer.from(payloadBase64, 'base64').toString('utf8')
     const payload = JSON.parse(payloadJson)
-    return (
-      payload['role'] || payload['https://hasura.io/jwt/claims']?.['x-hasura-role'] || null
-    )
-  } catch {
+    return payload['role'] || payload['https://hasura.io/jwt/claims']?.['x-hasura-role'] || null
+  } catch (error) {
+    console.error('Error parsing JWT token:', error)
     return null
   }
 }

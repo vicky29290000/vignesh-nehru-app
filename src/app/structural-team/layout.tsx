@@ -6,10 +6,13 @@ export default async function StructuralTeamLayout({
 }: {
   children: React.ReactNode
 }) {
+  // Fetch the current user's details
   const user = await getUser()
 
+  // Redirect if the user is not logged in or does not have the 'structural_team' role
   if (!user || user.role !== 'structural_team') {
-    redirect('/auth/login') // Or show 403 page
+    redirect('/auth/login')  // You can also redirect to a 403 page if preferred
+    return null  // Explicitly return `null` as the layout won't render after the redirect
   }
 
   return (

@@ -6,10 +6,12 @@ export default async function ClientLayout({
 }: {
   children: React.ReactNode
 }) {
+  // Fetch user data
   const user = await getUser()
 
+  // Redirect to login if user doesn't exist or role is not 'client'
   if (!user || user.role !== 'client') {
-    redirect('/auth/login')
+    return redirect('/auth/login')  // Ensure this handles the redirection properly.
   }
 
   return (
