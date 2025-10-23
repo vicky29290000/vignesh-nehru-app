@@ -5,6 +5,3 @@ services:
     buildCommand: "pnpm install && pnpm build"
     startCommand: "pnpm start"
     plan: free
-  - type: database
-    name: my-database
-    plan: free
